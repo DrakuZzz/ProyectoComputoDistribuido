@@ -8,11 +8,18 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname)));
 
+const soloFarmacia = (req, res, next) => {
+    if (req.header('x-rol') !== 'farmacia') {
+        return res.status(403).json({ error: 'Se requiere el rol de farmacia' });
+    }
+    next();
+};
+
 const db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '123456',
-    database: 'clinica_farmacia',
+    database: 'clinica',
     port: 3306
 });
 
@@ -30,6 +37,29 @@ app.get('/api/farmacia/medicamentos', (req, res) => {
             total: results.length,
             medicamentos: results
         });
+    });
+});
+
+// Farmacia puede consultar una receta, pero nunca el diagnóstico clínico.
+app.get('/api/farmacia/recetas/:id', soloFarmacia, (req, res) => {
+    db.query(
+        `SELECT r.id_receta, r.paciente, r.fecha, r.estado,
+                rm.medicamento_id, rm.indicaciones, rm.cantidad
+         FROM recetas r
+         LEFT JOIN receta_medicamentos rm ON rm.receta_id = r.id_receta
+         WHERE r.id_receta = ?`,
+        [Number(req.params.id)],
+        (err, results) => {
+            if (err) return res.status(500).json({ error: 'Error al consultar la receta' });
+            if (!results.length) return res.status(404).json({ error: 'Receta no encontrada' });
+            res.json({ receta: results });
+        }
+    );
+});
+
+app.put('/api/farmacia/consultas/:id/diagnostico', soloFarmacia, (req, res) => {
+    res.status(403).json({
+        error: 'Farmacia puede consultar recetas, pero no puede modificar diagnósticos'
     });
 });
 

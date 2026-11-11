@@ -24,6 +24,11 @@
         .stock-control { display: flex; align-items: center; gap: 8px; }
         .stock-control input { width: 90px; margin: 0; }
         .stock-control button { width: auto; margin: 0; padding: 10px 12px; box-shadow: none; }
+        .panel { margin-top: 24px; padding: 18px; border: 1px solid #d9eae0; border-radius: 14px; background: #f8fdf9; }
+        .panel h3 { margin-top: 0; }
+        .panel button { margin-top: 12px; }
+        .panel .danger { background: #b33a3a; }
+        .panel .danger:hover { background: #922f2f; }
         @media (max-width: 560px) { .inventario-item { grid-template-columns: 1fr; } .stock-control { width: 100%; } .stock-control input { flex: 1; } }
         .toast { display: none; margin: 18px 0 -8px; padding: 13px 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
         .toast.visible { display: block; }
@@ -54,6 +59,30 @@
     <label for="buscarMedicamento">Buscar medicamento:</label>
     <input type="search" id="buscarMedicamento" placeholder="Ej. Paracetamol">
     <div id="inventario"></div>
+
+    <div class="panel">
+        <h3>Consultar recetas</h3>
+        <p>Farmacia puede consultar los medicamentos de una receta, sin acceder al diagnóstico.</p>
+        <form id="formConsultarReceta">
+            <label for="idReceta">Número de receta:</label>
+            <input type="number" id="idReceta" min="1" value="1" required>
+            <button type="submit">Consultar receta</button>
+        </form>
+        <pre id="recetaOutput">Escribe un número de receta y consulta.</pre>
+    </div>
+
+    <div class="panel">
+        <h3>Intentar modificar diagnóstico</h3>
+        <p>Esta operación se muestra para comprobar que el rol de farmacia no tiene permiso.</p>
+        <form id="formModificarDiagnostico">
+            <label for="idConsulta">Número de consulta:</label>
+            <input type="number" id="idConsulta" min="1" value="1" required>
+            <label for="diagnostico">Nuevo diagnóstico:</label>
+            <input type="text" id="diagnostico" value="Cambio no autorizado" required>
+            <button class="danger" type="submit">Intentar modificar diagnóstico</button>
+        </form>
+        <pre id="diagnosticoOutput">La respuesta de autorización aparecerá aquí.</pre>
+    </div>
 
     <h3>Respuesta del Servidor JSON:</h3>
     <pre id="output">Esperando acción...</pre>
@@ -147,6 +176,53 @@
             mostrarNotificacion(error.message, 'error');
         }
     }
+
+    async function consultarReceta(idReceta) {
+        try {
+            const res = await fetch(`${PORT_4000}/api/farmacia/recetas/${idReceta}`, {
+                headers: { 'x-rol': 'farmacia' }
+            });
+            const json = await res.json();
+            document.getElementById('recetaOutput').textContent = JSON.stringify(json, null, 2);
+            if (!res.ok) throw new Error(json.error || 'No se pudo consultar la receta');
+            mostrarNotificacion('Receta consultada correctamente', 'success');
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    async function intentarModificarDiagnostico(idConsulta, diagnostico) {
+        try {
+            const res = await fetch(`${PORT_4000}/api/farmacia/consultas/${idConsulta}/diagnostico`, {
+                method: 'PUT',
+                headers: {
+                    'x-rol': 'farmacia',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ diagnostico })
+            });
+            const json = await res.json();
+            document.getElementById('diagnosticoOutput').textContent =
+                `HTTP ${res.status}\n${JSON.stringify(json, null, 2)}`;
+            if (!res.ok) throw new Error(json.error || 'No se pudo modificar el diagnóstico');
+            mostrarNotificacion('Diagnóstico modificado', 'success');
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    document.getElementById('formConsultarReceta').addEventListener('submit', (event) => {
+        event.preventDefault();
+        consultarReceta(Number(document.getElementById('idReceta').value));
+    });
+
+    document.getElementById('formModificarDiagnostico').addEventListener('submit', (event) => {
+        event.preventDefault();
+        intentarModificarDiagnostico(
+            Number(document.getElementById('idConsulta').value),
+            document.getElementById('diagnostico').value
+        );
+    });
 
     document.getElementById('buscarMedicamento').addEventListener('input', cargarInventario);
     cargarInventario();

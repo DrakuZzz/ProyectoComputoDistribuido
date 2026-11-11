@@ -54,7 +54,7 @@ app.get('/api/farmacia/medicamentos', (req, res) => {
 // Farmacia puede consultar una receta, pero nunca el diagnóstico clínico.
 app.get('/api/farmacia/recetas/:id', soloFarmacia, (req, res) => {
     dbClinica.query(
-        `SELECT r.id_receta, r.paciente, r.fecha, r.estado,
+        `SELECT r.id_receta, r.paciente, r.correo_paciente, r.medico, r.fecha, r.estado,
                 rm.medicamento_id, rm.indicaciones, rm.cantidad
          FROM recetas r
          LEFT JOIN receta_medicamentos rm ON rm.receta_id = r.id_receta

@@ -29,6 +29,9 @@
         .panel button { margin-top: 12px; }
         .panel .danger { background: #b33a3a; }
         .panel .danger:hover { background: #922f2f; }
+        #recetaOutput { min-height: 0; padding: 18px; border: 1px solid #d9eae0; border-radius: 12px; background: #f8fdf9; color: #285d3b; }
+        #recetaOutput h4 { margin: 0 0 10px; color: #178044; }
+        #recetaOutput ul { margin: 8px 0 0; padding-left: 20px; line-height: 1.7; }
         @media (max-width: 560px) { .inventario-item { grid-template-columns: 1fr; } .stock-control { width: 100%; } .stock-control input { flex: 1; } }
         .toast { display: none; margin: 18px 0 -8px; padding: 13px 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
         .toast.visible { display: block; }
@@ -68,7 +71,7 @@
             <input type="number" id="idReceta" min="1" value="1" required>
             <button type="submit">Consultar receta</button>
         </form>
-        <pre id="recetaOutput">Escribe un número de receta y consulta.</pre>
+        <div id="recetaOutput">Escribe un número de receta y consulta.</div>
     </div>
 
     <div class="panel">
@@ -183,12 +186,31 @@
                 headers: { 'x-rol': 'farmacia' }
             });
             const json = await res.json();
-            document.getElementById('recetaOutput').textContent = JSON.stringify(json, null, 2);
             if (!res.ok) throw new Error(json.error || 'No se pudo consultar la receta');
+            const receta = json.receta[0];
+            const medicamentos = json.receta
+                .filter((registro) => registro.medicamento_id !== null)
+                .map((registro) =>
+                    `<li><strong>Medicamento #${escapeHtml(registro.medicamento_id)}:</strong> ${escapeHtml(registro.indicaciones)} · Cantidad: ${escapeHtml(registro.cantidad)}</li>`
+                )
+                .join('');
+            document.getElementById('recetaOutput').innerHTML = `
+                <h4>Receta #${escapeHtml(receta.id_receta)} · ${escapeHtml(receta.paciente)}</h4>
+                <div><strong>Médico:</strong> ${escapeHtml(receta.medico)}</div>
+                <div><strong>Correo:</strong> ${escapeHtml(receta.correo_paciente)}</div>
+                <div><strong>Fecha:</strong> ${escapeHtml(receta.fecha)} · <strong>Estado:</strong> ${escapeHtml(receta.estado)}</div>
+                <ul>${medicamentos || '<li>La receta no tiene medicamentos registrados.</li>'}</ul>
+            `;
             mostrarNotificacion('Receta consultada correctamente', 'success');
         } catch (error) {
             mostrarNotificacion(error.message, 'error');
         }
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
     }
 
     async function intentarModificarDiagnostico(idConsulta, diagnostico) {

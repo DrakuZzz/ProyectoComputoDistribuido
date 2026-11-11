@@ -45,6 +45,19 @@ app.get('/api/medicos/recetas', (req, res) => {
     });
 });
 
+app.delete('/api/medicos/recetas/:id', (req, res) => {
+    const idReceta = Number(req.params.id);
+    if (!Number.isInteger(idReceta) || idReceta <= 0) {
+        return res.status(400).json({ error: 'El identificador de la receta no es válido' });
+    }
+
+    db.query('DELETE FROM recetas WHERE id_receta = ?', [idReceta], (err, result) => {
+        if (err) return res.status(500).json({ error: 'Error al eliminar la receta' });
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Receta no encontrada' });
+        res.json({ mensaje: 'Receta eliminada correctamente', id_receta: idReceta });
+    });
+});
+
 app.get('/api/medicos/pacientes', (req, res) => {
     db.query(
         'SELECT id_paciente, nombre, correo FROM pacientes ORDER BY nombre',

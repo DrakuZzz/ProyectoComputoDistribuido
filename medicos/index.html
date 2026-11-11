@@ -29,6 +29,8 @@
         #detalleReceta.visible { display: block; }
         #detalleReceta h4 { margin: 0 0 10px; color: #174ea6; }
         #detalleReceta ul { margin: 8px 0 0; padding-left: 20px; color: #52637c; line-height: 1.7; }
+        #detalleReceta .eliminar-receta { background: #b33a3a; box-shadow: none; }
+        #detalleReceta .eliminar-receta:hover { background: #922f2f; }
         pre { margin-top: 14px; min-height: 80px; padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #101b2d; color: #c9dcf7; overflow-x: auto; font-size: 12px; line-height: 1.6; }
         .toast { display: none; margin: 18px 0 -8px; padding: 13px 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
         .toast.visible { display: block; }
@@ -364,9 +366,30 @@
             <ul>${receta.medicamentos.map((medicamento) =>
                 `<li><strong>Medicamento #${medicamento.medicamento_id}:</strong> ${medicamento.indicaciones}</li>`
             ).join('')}</ul>
+            <button type="button" class="eliminar-receta">Eliminar receta</button>
         `;
+        detalle.querySelector('.eliminar-receta').addEventListener('click', () =>
+            eliminarReceta(receta.id_receta)
+        );
         detalle.classList.add('visible');
         document.getElementById('output').textContent = JSON.stringify(receta, null, 2);
+    }
+
+    async function eliminarReceta(idReceta) {
+        if (!window.confirm(`¿Eliminar la receta #${idReceta}?`)) return;
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/recetas/${idReceta}`, {
+                method: 'DELETE'
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudo eliminar la receta');
+            mostrarNotificacion(json.mensaje, 'success');
+            document.getElementById('detalleReceta').classList.remove('visible');
+            document.getElementById('output').textContent = 'Selecciona una receta para ver su información...';
+            await consultarRecetas();
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
     }
 
     async function probarComunicacionNodos() {

@@ -8,6 +8,12 @@ médica → laboratorio → receta → farmacia**. Los esquemas se encuentran en
 [`database/farmacia.sql`](./database/farmacia.sql). La base `clinica` define
 las tablas mínimas solicitadas:
 
+También está disponible la versión organizada por etapas en la carpeta
+[`database/scripts/`](./database/scripts/), desde
+`01_creacion_bd.sql` hasta `07_distribucion.sql`. Se ejecutan en orden
+numérico para crear, poblar, consultar, actualizar, eliminar y probar la
+distribución de las dos bases.
+
 1. `pacientes`
 2. `medicos`
 3. `citas`

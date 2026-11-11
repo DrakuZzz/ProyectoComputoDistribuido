@@ -15,7 +15,14 @@ const soloFarmacia = (req, res, next) => {
     next();
 };
 
-const db = mysql.createConnection({
+const dbFarmacia = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '123456',
+    database: 'farmacia',
+    port: 3306
+});
+const dbClinica = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '123456',
@@ -23,14 +30,18 @@ const db = mysql.createConnection({
     port: 3306
 });
 
-db.connect(err => {
+dbFarmacia.connect(err => {
     if (err) console.error('Error conectando a BD Farmacia:', err);
-    else console.log('Conectado a clinica_farmacia (Puerto 4000)');
+    else console.log('Conectado a farmacia (Puerto 4000)');
+});
+dbClinica.connect(err => {
+    if (err) console.error('Error conectando a BD Clínica para recetas:', err);
+    else console.log('Conectado a clinica para recetas (Puerto 4000)');
 });
 
 // GET: Consultar medicamentos
 app.get('/api/farmacia/medicamentos', (req, res) => {
-    db.query('SELECT * FROM medicamentos', (err, results) => {
+    dbFarmacia.query('SELECT * FROM medicamentos ORDER BY nombre', (err, results) => {
         if (err) return res.status(500).json({ error: 'Error al consultar inventario' });
         res.json({
             nodo: "Servicio de Farmacia (Puerto 4000)",
@@ -42,7 +53,7 @@ app.get('/api/farmacia/medicamentos', (req, res) => {
 
 // Farmacia puede consultar una receta, pero nunca el diagnóstico clínico.
 app.get('/api/farmacia/recetas/:id', soloFarmacia, (req, res) => {
-    db.query(
+    dbClinica.query(
         `SELECT r.id_receta, r.paciente, r.fecha, r.estado,
                 rm.medicamento_id, rm.indicaciones, rm.cantidad
          FROM recetas r
@@ -67,7 +78,7 @@ app.put('/api/farmacia/consultas/:id/diagnostico', soloFarmacia, (req, res) => {
 app.post('/api/farmacia/medicamentos', (req, res) => {
     const { nombre, stock, precio } = req.body;
     const query = 'INSERT INTO medicamentos (nombre, stock, precio) VALUES (?, ?, ?)';
-    db.query(query, [nombre, stock, precio], (err, result) => {
+    dbFarmacia.query(query, [nombre, stock, precio], (err, result) => {
         if (err) return res.status(500).json({ error: 'Error al registrar medicamento' });
         res.status(201).json({ mensaje: 'Medicamento añadido con éxito', id_medicamento: result.insertId });
     });
@@ -83,7 +94,7 @@ app.put('/api/farmacia/medicamentos/:id/stock', (req, res) => {
         return res.status(400).json({ error: 'El ID y el stock deben ser números enteros válidos' });
     }
 
-    db.query(
+    dbFarmacia.query(
         'UPDATE medicamentos SET stock = ? WHERE id_medicamento = ?',
         [stock, idMedicamento],
         (err, result) => {
@@ -94,6 +105,55 @@ app.put('/api/farmacia/medicamentos/:id/stock', (req, res) => {
             res.json({ mensaje: 'Stock actualizado correctamente', id_medicamento: idMedicamento, stock });
         }
     );
+});
+
+app.get('/api/farmacia/movimientos', (req, res) => {
+    dbFarmacia.query(
+        `SELECT mi.*, m.nombre AS medicamento
+         FROM movimientos_inventario mi
+         JOIN medicamentos m ON m.id_medicamento = mi.medicamento_id
+         ORDER BY mi.fecha DESC`,
+        (err, results) => {
+            if (err) return res.status(500).json({ error: 'Error al consultar movimientos' });
+            res.json({ movimientos: results });
+        }
+    );
+});
+
+app.post('/api/farmacia/movimientos', (req, res) => {
+    const { medicamento_id, tipo, cantidad, motivo } = req.body;
+    if (!Number.isInteger(Number(medicamento_id)) || Number(medicamento_id) <= 0 ||
+        !Number.isInteger(Number(cantidad)) || Number(cantidad) <= 0 ||
+        !['entrada', 'salida', 'ajuste'].includes(tipo) || !motivo?.trim()) {
+        return res.status(400).json({ error: 'Datos de movimiento inválidos' });
+    }
+
+    dbFarmacia.beginTransaction(error => {
+        if (error) return res.status(500).json({ error: 'Error al iniciar el movimiento' });
+        dbFarmacia.query('SELECT stock FROM medicamentos WHERE id_medicamento = ? FOR UPDATE', [medicamento_id], (lockError, rows) => {
+            if (lockError || !rows.length) {
+                return dbFarmacia.rollback(() => lockError
+                    ? res.status(500).json({ error: 'Error al consultar stock' })
+                    : res.status(404).json({ error: 'Medicamento no encontrado' }));
+            }
+            const stock = rows[0].stock;
+            const nuevoStock = tipo === 'entrada' ? stock + Number(cantidad) : tipo === 'salida' ? stock - Number(cantidad) : Number(cantidad);
+            if (nuevoStock < 0) return dbFarmacia.rollback(() => res.status(400).json({ error: 'No hay stock suficiente para la salida' }));
+            dbFarmacia.query('UPDATE medicamentos SET stock = ? WHERE id_medicamento = ?', [nuevoStock, medicamento_id], updateError => {
+                if (updateError) return dbFarmacia.rollback(() => res.status(500).json({ error: 'Error al actualizar stock' }));
+                dbFarmacia.query(
+                    'INSERT INTO movimientos_inventario (medicamento_id, tipo, cantidad, motivo) VALUES (?, ?, ?, ?)',
+                    [medicamento_id, tipo, cantidad, motivo.trim()],
+                    (insertError, result) => {
+                        if (insertError) return dbFarmacia.rollback(() => res.status(500).json({ error: 'Error al registrar movimiento' }));
+                        dbFarmacia.commit(commitError => commitError
+                            ? res.status(500).json({ error: 'Error al confirmar movimiento' })
+                            : res.status(201).json({ mensaje: 'Movimiento registrado', id_movimiento: result.insertId, stock: nuevoStock }));
+                    }
+                );
+            });
+        });
+    });
 });
 
 app.listen(4000, () => {

@@ -12,3 +12,6 @@ require('./farmacia/server_farmacia.js');
 
 // 2. Lanza el servidor de Médicos (Puerto 3000)
 require('./medicos/server_medicos.js');
+
+// 3. Lanza el servidor de administración clínica (Puerto 5000)
+require('./clinica/server_clinica.js');

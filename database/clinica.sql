@@ -13,7 +13,6 @@ DROP TABLE IF EXISTS recetas;
 DROP TABLE IF EXISTS resultados;
 DROP TABLE IF EXISTS consultas;
 DROP TABLE IF EXISTS citas;
-DROP TABLE IF EXISTS medicamentos;
 DROP TABLE IF EXISTS medicos;
 DROP TABLE IF EXISTS pacientes;
 DROP TABLE IF EXISTS usuarios;
@@ -81,17 +80,6 @@ CREATE TABLE resultados (
     CONSTRAINT fk_resultados_consulta FOREIGN KEY (consulta_id) REFERENCES consultas (id_consulta)
 ) ENGINE = InnoDB;
 
-CREATE TABLE medicamentos (
-    id_medicamento INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    principio_activo VARCHAR(120) NOT NULL,
-    stock INT UNSIGNED NOT NULL DEFAULT 0,
-    precio DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_medicamentos_precio CHECK (precio >= 0),
-    UNIQUE KEY uq_medicamentos_nombre (nombre)
-) ENGINE = InnoDB;
-
 CREATE TABLE recetas (
     id_receta INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     paciente_id INT UNSIGNED NULL,
@@ -118,21 +106,7 @@ CREATE TABLE receta_medicamentos (
     CONSTRAINT fk_detalle_receta
         FOREIGN KEY (receta_id) REFERENCES recetas (id_receta)
         ON DELETE CASCADE,
-    CONSTRAINT fk_detalle_medicamento
-        FOREIGN KEY (medicamento_id) REFERENCES medicamentos (id_medicamento),
     UNIQUE KEY uq_receta_medicamento (receta_id, medicamento_id)
-) ENGINE = InnoDB;
-
-CREATE TABLE movimientos_inventario (
-    id_movimiento INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    medicamento_id INT UNSIGNED NOT NULL,
-    tipo ENUM('entrada', 'salida', 'ajuste') NOT NULL,
-    cantidad INT UNSIGNED NOT NULL,
-    motivo VARCHAR(150) NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_movimiento_medicamento
-        FOREIGN KEY (medicamento_id) REFERENCES medicamentos (id_medicamento),
-    CONSTRAINT chk_movimiento_cantidad CHECK (cantidad > 0)
 ) ENGINE = InnoDB;
 
 INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES
@@ -207,18 +181,6 @@ INSERT INTO resultados (consulta_id, tipo_prueba, resultado, validado) VALUES
 (9, 'Hemoglobina glucosilada', '6.1%', TRUE),
 (10, 'Espirometría', 'Patrón obstructivo leve', FALSE);
 
-INSERT INTO medicamentos (nombre, principio_activo, stock, precio) VALUES
-('Paracetamol 500 mg', 'Paracetamol', 120, 25.50),
-('Ibuprofeno 400 mg', 'Ibuprofeno', 95, 38.00),
-('Amoxicilina 500 mg', 'Amoxicilina', 80, 72.90),
-('Loratadina 10 mg', 'Loratadina', 110, 45.00),
-('Omeprazol 20 mg', 'Omeprazol', 75, 58.50),
-('Metformina 850 mg', 'Metformina', 65, 64.00),
-('Losartán 50 mg', 'Losartán', 90, 83.00),
-('Salbutamol 100 mcg', 'Salbutamol', 40, 115.00),
-('Diclofenaco 50 mg', 'Diclofenaco', 70, 42.50),
-('Azitromicina 500 mg', 'Azitromicina', 55, 96.00);
-
 INSERT INTO recetas
     (paciente_id, medico_id, paciente, correo_paciente, medico, estado)
 VALUES
@@ -246,17 +208,3 @@ VALUES
 (8, 8, 'Usar dos inhalaciones cuando sea necesario', 1),
 (9, 6, 'Tomar una tableta con la cena', 30),
 (10, 10, 'Tomar una tableta cada 24 horas', 3);
-
-INSERT INTO movimientos_inventario
-    (medicamento_id, tipo, cantidad, motivo)
-VALUES
-(1, 'entrada', 120, 'Carga inicial'),
-(2, 'entrada', 95, 'Carga inicial'),
-(3, 'entrada', 80, 'Carga inicial'),
-(4, 'entrada', 110, 'Carga inicial'),
-(5, 'entrada', 75, 'Carga inicial'),
-(6, 'entrada', 65, 'Carga inicial'),
-(7, 'entrada', 90, 'Carga inicial'),
-(8, 'entrada', 40, 'Carga inicial'),
-(9, 'entrada', 70, 'Carga inicial'),
-(10, 'entrada', 55, 'Carga inicial');

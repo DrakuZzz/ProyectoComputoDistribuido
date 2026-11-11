@@ -45,6 +45,56 @@ app.get('/api/medicos/recetas', (req, res) => {
     });
 });
 
+app.get('/api/medicos/pacientes', (req, res) => {
+    db.query(
+        'SELECT id_paciente, nombre, correo FROM pacientes ORDER BY nombre',
+        (err, results) => {
+            if (err) return res.status(500).json({ error: 'Error al consultar pacientes' });
+            res.json({ pacientes: results });
+        }
+    );
+});
+
+app.get('/api/medicos/identificar/:cedula', (req, res) => {
+    db.query(
+        'SELECT id_medico, nombre, especialidad, cedula FROM medicos WHERE cedula = ? AND activo = TRUE',
+        [req.params.cedula.trim()],
+        (err, results) => {
+            if (err) return res.status(500).json({ error: 'Error al identificar al médico' });
+            if (!results.length) return res.status(404).json({ error: 'No existe un médico activo con esa cédula' });
+            res.json({ medico: results[0] });
+        }
+    );
+});
+
+app.post('/api/medicos/citas', (req, res) => {
+    const { paciente_id, cedula_medico, fecha, motivo } = req.body;
+    if (!Number.isInteger(paciente_id) || paciente_id <= 0 ||
+        !cedula_medico?.trim() || !fecha || !motivo?.trim()) {
+        return res.status(400).json({ error: 'Paciente, cédula, fecha y motivo son obligatorios' });
+    }
+
+    db.query(
+        `SELECT m.id_medico
+         FROM medicos m
+         JOIN pacientes p ON p.id_paciente = ?
+         WHERE m.cedula = ? AND m.activo = TRUE`,
+        [paciente_id, cedula_medico.trim()],
+        (identityError, rows) => {
+            if (identityError) return res.status(500).json({ error: 'Error al validar paciente y médico' });
+            if (!rows.length) return res.status(400).json({ error: 'El paciente o la cédula del médico no existe' });
+
+            db.query(
+                'INSERT INTO citas (paciente_id, medico_id, fecha, motivo, estado) VALUES (?, ?, ?, ?, ?)',
+                [paciente_id, rows[0].id_medico, fecha, motivo.trim(), 'programada'],
+                (insertError, result) => insertError
+                    ? res.status(500).json({ error: 'Error al registrar la cita' })
+                    : res.status(201).json({ mensaje: 'Cita registrada', id_cita: result.insertId })
+            );
+        }
+    );
+});
+
 // GET: Consultar inventario del nodo de farmacia (Puerto 4000) vía HTTP
 app.get('/api/medicos/consultar-farmacia', async (req, res) => {
     try {
@@ -61,19 +111,53 @@ app.get('/api/medicos/consultar-farmacia', async (req, res) => {
 
 // POST: Crear receta, guardar en BD y enviar correo automático
 app.post('/api/medicos/recetas', async (req, res) => {
-    const { paciente, correo_paciente, medicamentos, medico } = req.body;
+    const { paciente_id, cedula_medico, medicamentos } = req.body;
 
-    if (!Array.isArray(medicamentos) || medicamentos.length === 0 ||
+    if (!Number.isInteger(paciente_id) || !cedula_medico?.trim() ||
+        !Array.isArray(medicamentos) || medicamentos.length === 0 ||
         medicamentos.some(({ medicamento_id, indicaciones }) =>
             !Number.isInteger(medicamento_id) || !indicaciones?.trim())) {
-        return res.status(400).json({ error: 'Debe agregar al menos un medicamento con sus indicaciones' });
+        return res.status(400).json({ error: 'Seleccione un paciente, indique una cédula válida y agregue medicamentos con indicaciones' });
     }
 
-    db.beginTransaction((transactionError) => {
+    let inventario;
+    try {
+        const farmaciaResponse = await fetch('http://localhost:4000/api/farmacia/medicamentos');
+        if (!farmaciaResponse.ok) throw new Error(`Farmacia respondió HTTP ${farmaciaResponse.status}`);
+        inventario = await farmaciaResponse.json();
+    } catch (error) {
+        console.error('Error al validar medicamentos en el nodo de Farmacia:', error);
+        return res.status(503).json({ error: 'Servicio de Farmacia no disponible para validar medicamentos' });
+    }
+
+    const medicamentosDisponibles = new Set(
+        inventario.medicamentos.map(({ id_medicamento }) => id_medicamento)
+    );
+    if (medicamentos.some(({ medicamento_id }) => !medicamentosDisponibles.has(medicamento_id))) {
+        return res.status(400).json({ error: 'Uno o más medicamentos no existen en el inventario de Farmacia' });
+    }
+
+    db.query(
+        `SELECT p.nombre AS paciente, p.correo AS correo_paciente,
+                m.id_medico, m.nombre AS medico
+         FROM pacientes p
+         JOIN medicos m ON m.cedula = ? AND m.activo = TRUE
+         WHERE p.id_paciente = ?`,
+        [cedula_medico.trim(), paciente_id],
+        (identityError, identityResults) => {
+        if (identityError) return res.status(500).json({ error: 'Error al validar paciente y médico' });
+        if (!identityResults.length) {
+            return res.status(400).json({ error: 'El paciente o la cédula del médico no existe' });
+        }
+
+        const { paciente, correo_paciente, id_medico, medico } = identityResults[0];
+        db.beginTransaction((transactionError) => {
         if (transactionError) return res.status(500).json({ error: 'Error al iniciar el registro de la receta' });
 
-        const query = 'INSERT INTO recetas (paciente, correo_paciente, medico) VALUES (?, ?, ?)';
-        db.query(query, [paciente, correo_paciente, medico], (err, result) => {
+        const query = `INSERT INTO recetas
+            (paciente_id, medico_id, paciente, correo_paciente, medico)
+            VALUES (?, ?, ?, ?, ?)`;
+        db.query(query, [paciente_id, id_medico, paciente, correo_paciente, medico], (err, result) => {
         if (err) {
             return db.rollback(() => res.status(500).json({ error: 'Error al guardar la receta' }));
         }
@@ -127,6 +211,7 @@ app.post('/api/medicos/recetas', async (req, res) => {
             });
         }
             });
+        });
         });
     });
 });

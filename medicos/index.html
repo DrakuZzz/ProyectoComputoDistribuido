@@ -40,15 +40,36 @@
 <body>
 <div class="card">
     <h1>🩺 Portal de Médicos (Puerto 3000)</h1>
-    <p>Genera recetas y envía correos automáticos al paciente.</p>
+    <p>Registra citas, genera recetas y envía correos automáticos al paciente.</p>
     <div id="toast" class="toast" role="status"></div>
 
+    <h3>Registrar cita para un paciente</h3>
+    <p>El médico puede agendar una cita únicamente con su propia cédula.</p>
+    <form id="formCita">
+        <label>Paciente registrado:</label>
+        <select id="cita_paciente_id" required>
+            <option value="">Cargando pacientes...</option>
+        </select>
+        <label>Fecha y hora:</label>
+        <input type="datetime-local" id="cita_fecha" required>
+        <label>Motivo:</label>
+        <input type="text" id="cita_motivo" required>
+        <label>Cédula del médico:</label>
+        <input type="text" id="cita_cedula_medico" required placeholder="Ej. CED-1001">
+        <label>Médico identificado:</label>
+        <input type="text" id="cita_medico" readonly placeholder="Se completará con la cédula">
+        <button type="submit">Registrar cita</button>
+    </form>
+
+    <hr>
     <h3>Crear Receta y Enviar Correo</h3>
     <form id="formReceta">
-        <label>Nombre del Paciente:</label>
-        <input type="text" id="paciente" required placeholder="Ej. Juan Pérez">
+        <label>Paciente registrado:</label>
+        <select id="paciente_id" required>
+            <option value="">Cargando pacientes...</option>
+        </select>
         <label>Correo Electrónico del Paciente:</label>
-        <input type="email" id="correo_paciente" required placeholder="Ej. correo@gmail.com">
+        <input type="email" id="correo_paciente" readonly required>
         <div id="medicamentos">
             <div class="medicamento">
                 <label>Medicamento disponible en Farmacia:</label>
@@ -61,8 +82,10 @@
             </div>
         </div>
         <button type="button" onclick="agregarMedicamento()">Añadir otro medicamento</button>
-        <label>Médico Responsable:</label>
-        <input type="text" id="medico" required placeholder="Ej. Dr. David Ramírez">
+        <label>Cédula del médico responsable:</label>
+        <input type="text" id="cedula_medico" required placeholder="Ej. CED-1001">
+        <label>Médico identificado:</label>
+        <input type="text" id="medico" readonly required placeholder="Se completará con la cédula">
         <button type="submit">Generar Receta y Enviar Correo</button>
     </form>
 
@@ -83,7 +106,70 @@
 <script>
     const PORT_3000 = 'http://localhost:3000';
     let medicamentosDisponibles = [];
+    let pacientesDisponibles = [];
     let recetasDisponibles = [];
+
+    async function cargarPacientes() {
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/pacientes`);
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudieron consultar los pacientes');
+            pacientesDisponibles = json.pacientes;
+            const selector = document.getElementById('paciente_id');
+            selector.replaceChildren(new Option('Selecciona un paciente', ''));
+            const selectorCita = document.getElementById('cita_paciente_id');
+            selectorCita.replaceChildren(new Option('Selecciona un paciente', ''));
+            pacientesDisponibles.forEach((paciente) => {
+                selector.add(new Option(`${paciente.nombre} · ${paciente.correo}`, paciente.id_paciente));
+                selectorCita.add(new Option(`${paciente.nombre} · ${paciente.correo}`, paciente.id_paciente));
+            });
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    function actualizarDatosPaciente() {
+        const paciente = pacientesDisponibles.find((item) =>
+            item.id_paciente === Number(document.getElementById('paciente_id').value)
+        );
+        document.getElementById('correo_paciente').value = paciente?.correo || '';
+    }
+
+    async function identificarMedico() {
+        const cedula = document.getElementById('cedula_medico').value.trim();
+        const campoMedico = document.getElementById('medico');
+        if (!cedula) {
+            campoMedico.value = '';
+            return;
+        }
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/identificar/${encodeURIComponent(cedula)}`);
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'Cédula no encontrada');
+            campoMedico.value = json.medico.nombre;
+        } catch (error) {
+            campoMedico.value = '';
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    async function identificarMedicoCita() {
+        const cedula = document.getElementById('cita_cedula_medico').value.trim();
+        const campoMedico = document.getElementById('cita_medico');
+        if (!cedula) {
+            campoMedico.value = '';
+            return;
+        }
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/identificar/${encodeURIComponent(cedula)}`);
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'Cédula no encontrada');
+            campoMedico.value = json.medico.nombre;
+        } catch (error) {
+            campoMedico.value = '';
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
 
     async function cargarMedicamentos() {
         try {
@@ -149,14 +235,16 @@
 
     document.getElementById('formReceta').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const paciente = pacientesDisponibles.find((item) =>
+            item.id_paciente === Number(document.getElementById('paciente_id').value)
+        );
         const data = {
-            paciente: document.getElementById('paciente').value,
-            correo_paciente: document.getElementById('correo_paciente').value,
+            paciente_id: paciente?.id_paciente,
+            cedula_medico: document.getElementById('cedula_medico').value.trim(),
             medicamentos: Array.from(document.querySelectorAll('.medicamento')).map((fila) => ({
                 medicamento_id: parseInt(fila.querySelector('.medicamento_id').value),
                 indicaciones: fila.querySelector('.indicaciones').value
             })),
-            medico: document.getElementById('medico').value
         };
 
         try {
@@ -164,6 +252,29 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
+            });
+
+            document.getElementById('formCita').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await fetch(`${PORT_3000}/api/medicos/citas`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            paciente_id: Number(document.getElementById('cita_paciente_id').value),
+                            cedula_medico: document.getElementById('cita_cedula_medico').value.trim(),
+                            fecha: document.getElementById('cita_fecha').value,
+                            motivo: document.getElementById('cita_motivo').value.trim()
+                        })
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.error || 'No se pudo registrar la cita');
+                    mostrarNotificacion(json.mensaje || 'Cita registrada correctamente', 'success');
+                    e.target.reset();
+                    document.getElementById('cita_medico').value = '';
+                } catch (error) {
+                    mostrarNotificacion(error.message, 'error');
+                }
             });
 
             document.getElementById('medicamentos').addEventListener('input', (e) => {
@@ -265,8 +376,12 @@
     }
 
     document.getElementById('buscarPaciente').addEventListener('input', mostrarRecetasPaciente);
+    document.getElementById('paciente_id').addEventListener('change', actualizarDatosPaciente);
+    document.getElementById('cedula_medico').addEventListener('change', identificarMedico);
+    document.getElementById('cita_cedula_medico').addEventListener('change', identificarMedicoCita);
 
     cargarMedicamentos();
+    cargarPacientes();
     consultarRecetas();
 </script>
 </body>

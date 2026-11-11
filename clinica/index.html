@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Administración clínica</title>
+    <style>
+        :root { font-family: system-ui, sans-serif; color: #172033; background: #eef4ff; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 28px 16px; }
+        main { max-width: 1150px; margin: auto; }
+        header, section { background: white; border: 1px solid #dbe4f2; border-radius: 14px; padding: 22px; margin-bottom: 18px; box-shadow: 0 8px 24px #1e40af12; }
+        h1 { margin: 0; color: #174ea6; } h2 { color: #263b61; margin-top: 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+        label { display: block; font-size: 13px; font-weight: 700; color: #43536d; }
+        input, select, textarea, button { width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid #cbd6e6; border-radius: 8px; font: inherit; }
+        textarea { min-height: 76px; resize: vertical; } button { background: #1769d1; color: white; border: 0; font-weight: 700; cursor: pointer; }
+        button.secondary { background: #e8f0fc; color: #1757a6; } button:hover { filter: brightness(.94); }
+        .actions { margin-top: 14px; display: flex; gap: 10px; } .actions button { width: auto; }
+        .table-wrap { overflow-x: auto; margin-top: 18px; } table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 9px; border-bottom: 1px solid #e3eaf3; text-align: left; vertical-align: top; } th { color: #43536d; background: #f5f8fd; }
+        #mensaje { display: none; padding: 12px; margin-bottom: 18px; border-radius: 8px; font-weight: 700; } #mensaje.visible { display: block; }
+        #mensaje.ok { background: #e8f7ee; color: #176b38; } #mensaje.error { background: #fff0f0; color: #a42d2d; }
+        small { color: #66748c; } @media (max-width: 600px) { body { padding: 14px 8px; } header, section { padding: 16px; } }
+    </style>
+</head>
+<body>
+<main>
+    <header><h1>🏥 Administración clínica</h1><p>Recepción, consultas, laboratorio, usuarios y movimientos de inventario.</p></header>
+    <div id="mensaje" role="status"></div>
+
+    <section><h2>Pacientes</h2><form id="pacienteForm" class="grid">
+        <label>Nombre<input name="nombre" required></label><label>Correo<input name="correo" type="email" required></label>
+        <label>Teléfono<input name="telefono"></label><label>Fecha de nacimiento<input name="fecha_nacimiento" type="date" required></label>
+        <div class="actions"><button>Registrar paciente</button><button type="button" class="secondary" onclick="cargar('pacientes')">Actualizar</button></div>
+    </form><div id="pacientes" class="table-wrap"></div></section>
+
+    <section><h2>Médicos</h2><form id="medicoForm" class="grid">
+        <label>Nombre<input name="nombre" required></label><label>Especialidad<input name="especialidad" required></label>
+        <label>Correo<input name="correo" type="email" required></label><label>Cédula<input name="cedula" required></label>
+        <div class="actions"><button>Registrar médico</button><button type="button" class="secondary" onclick="cargar('medicos')">Actualizar</button></div>
+    </form><div id="medicos" class="table-wrap"></div></section>
+
+    <section><h2>Citas</h2><form id="citaForm" class="grid">
+        <label>Paciente<select name="paciente_id" id="paciente_id" required></select></label><label>Médico<select name="medico_id" id="medico_id" required></select></label>
+        <label>Fecha y hora<input name="fecha" type="datetime-local" required></label><label>Motivo<input name="motivo" required></label>
+        <label>Estado<select name="estado"><option>programada</option><option>atendida</option><option>cancelada</option></select></label>
+        <div class="actions"><button>Registrar cita</button><button type="button" class="secondary" onclick="cargar('citas')">Actualizar</button></div>
+    </form><div id="citas" class="table-wrap"></div></section>
+
+    <section><h2>Consultas médicas</h2><form id="consultaForm" class="grid">
+        <label>Cita<select name="cita_id" id="cita_id" required></select></label><label>Paciente<select name="paciente_id" id="consulta_paciente_id" required></select></label>
+        <label>Médico<select name="medico_id" id="consulta_medico_id" required></select></label><label>Diagnóstico<textarea name="diagnostico" required></textarea></label>
+        <label>Notas<textarea name="notas"></textarea></label><div class="actions"><button>Registrar consulta</button><button type="button" class="secondary" onclick="cargar('consultas')">Actualizar</button></div>
+    </form><div id="consultas" class="table-wrap"></div></section>
+
+    <section><h2>Resultados de laboratorio</h2><form id="resultadoForm" class="grid">
+        <label>Consulta<select name="consulta_id" id="resultado_consulta_id" required></select></label><label>Tipo de prueba<input name="tipo_prueba" required></label>
+        <label>Resultado<textarea name="resultado" required></textarea></label><label>Validado<select name="validado"><option value="0">No</option><option value="1">Sí</option></select></label>
+        <div class="actions"><button>Registrar resultado</button><button type="button" class="secondary" onclick="cargar('resultados')">Actualizar</button></div>
+    </form><div id="resultados" class="table-wrap"></div></section>
+
+    <section><h2>Usuarios</h2><form id="usuarioForm" class="grid">
+        <label>Nombre<input name="nombre" required></label><label>Correo<input name="correo" type="email" required></label><label>Contraseña<input name="password_hash" type="password" required></label>
+        <label>Rol<select name="rol"><option>administrador</option><option>recepcion</option><option>medico</option><option>laboratorio</option><option>farmacia</option></select></label>
+        <div class="actions"><button>Registrar usuario</button><button type="button" class="secondary" onclick="cargar('usuarios')">Actualizar</button></div>
+    </form><div id="usuarios" class="table-wrap"></div></section>
+
+    <section><h2>Movimientos de inventario</h2><form id="movimientoForm" class="grid">
+        <label>Medicamento<select name="medicamento_id" id="medicamento_id" required></select></label><label>Tipo<select name="tipo"><option>entrada</option><option>salida</option><option>ajuste</option></select></label>
+        <label>Cantidad<input name="cantidad" type="number" min="1" required></label><label>Motivo<input name="motivo" required></label>
+        <div class="actions"><button>Registrar movimiento</button><button type="button" class="secondary" onclick="cargar('movimientos')">Actualizar</button></div>
+    </form><div id="movimientos" class="table-wrap"></div></section>
+</main>
+<script>
+const API = 'http://localhost:5000/api/clinica';
+const nombres = { pacientes: ['id_paciente','nombre','correo','telefono','fecha_nacimiento'], medicos: ['id_medico','nombre','especialidad','correo','cedula','activo'], citas: ['id_cita','paciente','medico','fecha','motivo','estado'], consultas: ['id_consulta','cita_id','paciente','medico','diagnostico','notas','fecha'], resultados: ['id_resultado','consulta_id','tipo_prueba','resultado','fecha','validado'], usuarios: ['id_usuario','nombre','correo','rol','activo'], movimientos: ['id_movimiento','medicamento','tipo','cantidad','motivo','fecha'] };
+function aviso(text, type = 'ok') { const el = document.getElementById('mensaje'); el.textContent = text; el.className = `visible ${type}`; setTimeout(() => el.className = '', 5000); }
+function formData(form) { return Object.fromEntries(new FormData(form)); }
+async function request(path, options = {}) { const response = await fetch(`${API}${path}`, { headers: { 'Content-Type': 'application/json' }, ...options }); const json = await response.json(); if (!response.ok) throw new Error(json.error || 'La operación no pudo completarse'); return json; }
+function tabla(id, rows) { const cols = nombres[id]; const el = document.getElementById(id); if (!rows.length) { el.innerHTML = '<small>No hay registros.</small>'; return; } el.innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${cols.map(c => `<td>${String(row[c] ?? '').replace(/[&<>"']/g, x => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`; }
+async function cargar(recurso) { try { const json = await request(`/${recurso}`); if (recurso === 'medicamentos') { llenar('medicamento_id', json.medicamentos, 'id_medicamento', 'nombre'); return; } tabla(recurso, json[recurso] || []); if (recurso === 'pacientes') llenar('paciente_id,consulta_paciente_id', json.pacientes, 'id_paciente', 'nombre'); if (recurso === 'medicos') llenar('medico_id,consulta_medico_id', json.medicos, 'id_medico', 'nombre'); if (recurso === 'citas') llenar('cita_id', json.citas, 'id_cita', 'motivo'); if (recurso === 'consultas') llenar('resultado_consulta_id', json.consultas, 'id_consulta', 'diagnostico'); } catch (e) { aviso(e.message, 'error'); } }
+function llenar(ids, rows, value, label) { ids.split(',').forEach(id => { const select = document.getElementById(id); if (!select) return; select.replaceChildren(new Option('Selecciona...', '')); rows.forEach(row => select.add(new Option(`#${row[value]} · ${row[label]}`, row[value]))); }); }
+async function enviar(event, recurso) { event.preventDefault(); try { const data = formData(event.target); ['paciente_id','medico_id','cita_id','consulta_id','medicamento_id','cantidad'].forEach(k => { if (data[k]) data[k] = Number(data[k]); }); if (data.validado) data.validado = data.validado === '1'; const json = await request(`/${recurso}`, { method: 'POST', body: JSON.stringify(data) }); aviso(json.mensaje || 'Registro guardado'); event.target.reset(); cargar(recurso); } catch (e) { aviso(e.message, 'error'); } }
+document.getElementById('pacienteForm').addEventListener('submit', e => enviar(e, 'pacientes')); document.getElementById('medicoForm').addEventListener('submit', e => enviar(e, 'medicos')); document.getElementById('citaForm').addEventListener('submit', e => enviar(e, 'citas')); document.getElementById('consultaForm').addEventListener('submit', e => enviar(e, 'consultas')); document.getElementById('resultadoForm').addEventListener('submit', e => enviar(e, 'resultados')); document.getElementById('usuarioForm').addEventListener('submit', e => enviar(e, 'usuarios')); document.getElementById('movimientoForm').addEventListener('submit', e => enviar(e, 'movimientos'));
+['pacientes','medicos','citas','consultas','resultados','usuarios','movimientos','medicamentos'].forEach(cargar);
+</script>
+</body>
+</html>

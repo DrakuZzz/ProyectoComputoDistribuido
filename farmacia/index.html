@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Módulo de Farmacia - Puerto 4000</title>
+    <style>
+        :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #17251d; background: #edf9f2; }
+        * { box-sizing: border-box; }
+        body { min-height: 100vh; margin: 0; padding: 36px 18px; background: radial-gradient(circle at top right, #d5f5e2, transparent 38%), #edf9f2; }
+        .card { max-width: 720px; margin: auto; padding: 36px; background: rgba(255,255,255,.96); border: 1px solid #d4eadc; border-radius: 20px; box-shadow: 0 20px 50px rgba(22, 101, 52, .12); }
+        h1 { margin: 0; color: #178044; font-size: clamp(24px, 4vw, 32px); letter-spacing: -.5px; }
+        h3 { margin: 28px 0 14px; color: #285d3b; font-size: 17px; }
+        p { color: #687d70; line-height: 1.6; }
+        label { display: block; margin-top: 16px; color: #496052; font-size: 13px; font-weight: 700; }
+        input { display: block; width: 100%; margin-top: 7px; padding: 12px 14px; border: 1px solid #c8dfd0; border-radius: 10px; background: #fbfffc; color: #17251d; font: inherit; outline: none; transition: border-color .2s, box-shadow .2s; }
+        input:focus { border-color: #32a864; box-shadow: 0 0 0 4px rgba(50,168,100,.14); }
+        button { display: block; width: 100%; margin-top: 16px; padding: 12px 16px; border: 0; border-radius: 10px; background: #16834a; color: white; font: inherit; font-weight: 700; cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; box-shadow: 0 7px 16px rgba(22,131,74,.2); }
+        button:hover { background: #106b3c; transform: translateY(-1px); }
+        hr { margin: 30px 0; border: 0; border-top: 1px solid #e0eee4; }
+        pre { margin-top: 14px; min-height: 80px; padding: 16px; border: 1px solid #d9eae0; border-radius: 12px; background: #11251a; color: #c8efd5; overflow-x: auto; font-size: 12px; line-height: 1.6; }
+        #inventario { display: grid; gap: 10px; margin-top: 14px; }
+        .inventario-item { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px 16px; border: 1px solid #d9eae0; border-radius: 12px; background: #f8fdf9; }
+        .inventario-item strong { color: #285d3b; }
+        .stock-control { display: flex; align-items: center; gap: 8px; }
+        .stock-control input { width: 90px; margin: 0; }
+        .stock-control button { width: auto; margin: 0; padding: 10px 12px; box-shadow: none; }
+        @media (max-width: 560px) { .inventario-item { grid-template-columns: 1fr; } .stock-control { width: 100%; } .stock-control input { flex: 1; } }
+        .toast { display: none; margin: 18px 0 -8px; padding: 13px 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
+        .toast.visible { display: block; }
+        .toast.success { background: #e8f7ee; border: 1px solid #b9e5c8; color: #176b38; }
+        .toast.error { background: #fff0f0; border: 1px solid #f1c1c1; color: #a42d2d; }
+        @media (max-width: 560px) { body { padding: 18px 10px; } .card { padding: 24px 18px; border-radius: 15px; } }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>💊 Portal de Farmacia (Puerto 4000)</h1>
+    <p>Gestión del inventario de medicamentos.</p>
+    <div id="toast" class="toast" role="status"></div>
+
+    <h3>Añadir Medicamento</h3>
+    <form id="formMedicamento">
+        <label>Nombre del Fármaco:</label>
+        <input type="text" id="nombre" required placeholder="Ej. Loratadina 10mg">
+        <label>Stock:</label>
+        <input type="number" id="stock" required placeholder="Ej. 100">
+        <label>Precio ($):</label>
+        <input type="number" step="0.01" id="precio" required placeholder="Ej. 25.50">
+        <button type="submit">Registrar Medicamento</button>
+    </form>
+
+    <hr style="margin: 20px 0;">
+    <button onclick="cargarInventario()">Consultar Inventario</button>
+    <label for="buscarMedicamento">Buscar medicamento:</label>
+    <input type="search" id="buscarMedicamento" placeholder="Ej. Paracetamol">
+    <div id="inventario"></div>
+
+    <h3>Respuesta del Servidor JSON:</h3>
+    <pre id="output">Esperando acción...</pre>
+</div>
+
+<script>
+    const PORT_4000 = 'http://localhost:4000';
+
+    function mostrarNotificacion(mensaje, tipo) {
+        const toast = document.getElementById('toast');
+        toast.textContent = mensaje;
+        toast.className = `toast visible ${tipo}`;
+        window.setTimeout(() => {
+            toast.className = 'toast';
+        }, 5000);
+    }
+
+    function mostrarInventario(medicamentos) {
+        const termino = document.getElementById('buscarMedicamento').value.trim().toLocaleLowerCase();
+        const inventario = document.getElementById('inventario');
+        inventario.replaceChildren();
+        medicamentos
+            .filter((medicamento) => medicamento.nombre.toLocaleLowerCase().includes(termino))
+            .forEach((medicamento) => {
+                const item = document.createElement('div');
+                item.className = 'inventario-item';
+                item.innerHTML = `
+                    <div><strong>${medicamento.nombre}</strong><br>
+                    <small>Precio: $${medicamento.precio} · Stock actual: ${medicamento.stock}</small></div>
+                    <div class="stock-control">
+                        <input type="number" min="0" step="1" value="${medicamento.stock}" aria-label="Nuevo stock de ${medicamento.nombre}">
+                        <button type="button">Actualizar</button>
+                    </div>
+                `;
+                item.querySelector('button').addEventListener('click', () =>
+                    actualizarStock(medicamento.id_medicamento, item.querySelector('input').value)
+                );
+                inventario.appendChild(item);
+            });
+        if (!inventario.children.length) inventario.innerHTML = '<p>No se encontraron medicamentos.</p>';
+    }
+
+    async function actualizarStock(idMedicamento, valorStock) {
+        try {
+            const res = await fetch(`${PORT_4000}/api/farmacia/medicamentos/${idMedicamento}/stock`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stock: Number(valorStock) })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudo actualizar el stock');
+            mostrarNotificacion(json.mensaje, 'success');
+            cargarInventario();
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    document.getElementById('formMedicamento').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            nombre: document.getElementById('nombre').value,
+            stock: parseInt(document.getElementById('stock').value),
+            precio: parseFloat(document.getElementById('precio').value)
+        };
+
+        try {
+            const res = await fetch(`${PORT_4000}/api/farmacia/medicamentos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudo registrar el medicamento');
+            mostrarNotificacion(json.mensaje || 'Medicamento registrado correctamente', 'success');
+            document.getElementById('formMedicamento').reset();
+            cargarInventario();
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    });
+
+    async function cargarInventario() {
+        try {
+            const res = await fetch(`${PORT_4000}/api/farmacia/medicamentos`);
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudo consultar el inventario');
+            mostrarInventario(json.medicamentos);
+            document.getElementById('output').textContent = JSON.stringify(json, null, 2);
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    document.getElementById('buscarMedicamento').addEventListener('input', cargarInventario);
+    cargarInventario();
+</script>
+</body>
+</html>

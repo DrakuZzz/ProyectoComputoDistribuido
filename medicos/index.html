@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Módulo de Médicos - Puerto 3000</title>
+    <style>
+        :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #172033; background: #eef4ff; }
+        * { box-sizing: border-box; }
+        body { min-height: 100vh; margin: 0; padding: 36px 18px; background: radial-gradient(circle at top right, #dbeafe, transparent 38%), #eef4ff; }
+        .card { max-width: 720px; margin: auto; padding: 36px; background: rgba(255,255,255,.96); border: 1px solid #dbe4f2; border-radius: 20px; box-shadow: 0 20px 50px rgba(30, 64, 175, .12); }
+        h1 { margin: 0; color: #174ea6; font-size: clamp(24px, 4vw, 32px); letter-spacing: -.5px; }
+        h3 { margin: 28px 0 14px; color: #263b61; font-size: 17px; }
+        p { color: #66748c; line-height: 1.6; }
+        label { display: block; margin-top: 16px; color: #43536d; font-size: 13px; font-weight: 700; }
+        input, select { display: block; width: 100%; margin-top: 7px; padding: 12px 14px; border: 1px solid #cbd6e6; border-radius: 10px; background: #fbfdff; color: #172033; font: inherit; outline: none; transition: border-color .2s, box-shadow .2s; }
+        input:focus, select:focus { border-color: #3978d8; box-shadow: 0 0 0 4px rgba(57,120,216,.14); }
+        button { display: block; width: 100%; margin-top: 16px; padding: 12px 16px; border: 0; border-radius: 10px; background: #1769d1; color: white; font: inherit; font-weight: 700; cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; box-shadow: 0 7px 16px rgba(23,105,209,.2); }
+        button:hover { background: #1255ae; transform: translateY(-1px); }
+        button[type="button"] { background: #e8f0fc; color: #1757a6; box-shadow: none; }
+        button[type="button"]:hover { background: #d7e6fb; }
+        #medicamentos { display: grid; gap: 16px; }
+        .medicamento { padding: 18px; border: 1px solid #d8e3f2; border-radius: 14px; background: #f8fbff; }
+        .medicamento-busqueda { margin-top: 7px; }
+        hr { margin: 30px 0; border: 0; border-top: 1px solid #e3eaf3; }
+        #recetasPaciente { display: grid; gap: 10px; margin-top: 12px; }
+        .receta-opcion { margin: 0; padding: 14px 16px; border: 1px solid #d8e3f2; border-radius: 12px; background: #f8fbff; color: #263b61; text-align: left; box-shadow: none; }
+        .receta-opcion:hover { background: #edf5ff; color: #174ea6; }
+        #detalleReceta { display: none; margin-top: 16px; padding: 18px; border: 1px solid #d8e3f2; border-radius: 14px; background: #f8fbff; }
+        #detalleReceta.visible { display: block; }
+        #detalleReceta h4 { margin: 0 0 10px; color: #174ea6; }
+        #detalleReceta ul { margin: 8px 0 0; padding-left: 20px; color: #52637c; line-height: 1.7; }
+        pre { margin-top: 14px; min-height: 80px; padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #101b2d; color: #c9dcf7; overflow-x: auto; font-size: 12px; line-height: 1.6; }
+        .toast { display: none; margin: 18px 0 -8px; padding: 13px 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
+        .toast.visible { display: block; }
+        .toast.success { background: #e8f7ee; border: 1px solid #b9e5c8; color: #176b38; }
+        .toast.error { background: #fff0f0; border: 1px solid #f1c1c1; color: #a42d2d; }
+        @media (max-width: 560px) { body { padding: 18px 10px; } .card { padding: 24px 18px; border-radius: 15px; } }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>🩺 Portal de Médicos (Puerto 3000)</h1>
+    <p>Genera recetas y envía correos automáticos al paciente.</p>
+    <div id="toast" class="toast" role="status"></div>
+
+    <h3>Crear Receta y Enviar Correo</h3>
+    <form id="formReceta">
+        <label>Nombre del Paciente:</label>
+        <input type="text" id="paciente" required placeholder="Ej. Juan Pérez">
+        <label>Correo Electrónico del Paciente:</label>
+        <input type="email" id="correo_paciente" required placeholder="Ej. correo@gmail.com">
+        <div id="medicamentos">
+            <div class="medicamento">
+                <label>Medicamento disponible en Farmacia:</label>
+                <input type="search" class="medicamento-busqueda" placeholder="Buscar por nombre...">
+                <select class="medicamento_id" required>
+                    <option value="">Cargando medicamentos...</option>
+                </select>
+                <label>Indicaciones para este medicamento:</label>
+                <input type="text" class="indicaciones" required placeholder="Ej. Tomar una cada 8 horas">
+            </div>
+        </div>
+        <button type="button" onclick="agregarMedicamento()">Añadir otro medicamento</button>
+        <label>Médico Responsable:</label>
+        <input type="text" id="medico" required placeholder="Ej. Dr. David Ramírez">
+        <button type="submit">Generar Receta y Enviar Correo</button>
+    </form>
+
+    <hr style="margin: 20px 0;">
+    <button onclick="probarComunicacionNodos()" style="background: #28a745;">Probar Enlace 3000 ➔ 4000 (Farmacia)</button>
+
+    <h3>Recetas del paciente</h3>
+    <label for="buscarPaciente">Buscar por nombre del paciente:</label>
+    <input type="search" id="buscarPaciente" placeholder="Ej. Octavio">
+    <div id="recetasPaciente">
+        <p>Escribe el nombre de un paciente para consultar sus recetas.</p>
+    </div>
+    <div id="detalleReceta"></div>
+    <h3>Detalle en formato JSON</h3>
+    <pre id="output">Selecciona una receta para ver su información...</pre>
+</div>
+
+<script>
+    const PORT_3000 = 'http://localhost:3000';
+    let medicamentosDisponibles = [];
+    let recetasDisponibles = [];
+
+    async function cargarMedicamentos() {
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/consultar-farmacia`);
+            const json = await res.json();
+
+            if (!res.ok || !Array.isArray(json.inventario_externo?.medicamentos)) {
+                throw new Error(json.error || 'No se pudo consultar el inventario de Farmacia');
+            }
+
+            medicamentosDisponibles = json.inventario_externo.medicamentos;
+            actualizarSelectores();
+        } catch (error) {
+            document.querySelectorAll('.medicamento_id').forEach((selector) => {
+                selector.replaceChildren(new Option('No se pudo cargar el inventario', ''));
+            });
+            document.getElementById('output').textContent = error.message;
+        }
+    }
+
+    function actualizarSelectores() {
+        document.querySelectorAll('.medicamento').forEach((fila) => {
+            const selector = fila.querySelector('.medicamento_id');
+            const termino = fila.querySelector('.medicamento-busqueda').value.trim().toLocaleLowerCase();
+            const valorActual = selector.value;
+            selector.replaceChildren(new Option('Selecciona un medicamento', ''));
+            medicamentosDisponibles
+                .filter((medicamento) => medicamento.nombre.toLocaleLowerCase().includes(termino))
+                .forEach((medicamento) => {
+                const descripcion = `${medicamento.nombre} - Stock: ${medicamento.stock} - $${medicamento.precio}`;
+                selector.add(new Option(descripcion, medicamento.id_medicamento));
+            });
+            selector.value = valorActual;
+        });
+    }
+
+    function agregarMedicamento() {
+        const fila = document.querySelector('.medicamento').cloneNode(true);
+        fila.querySelector('.medicamento_id').value = '';
+        fila.querySelector('.medicamento-busqueda').value = '';
+        fila.querySelector('.indicaciones').value = '';
+        document.getElementById('medicamentos').appendChild(fila);
+        actualizarSelectores();
+    }
+
+    function mostrarNotificacion(mensaje, tipo) {
+        const toast = document.getElementById('toast');
+        toast.textContent = mensaje;
+        toast.className = `toast visible ${tipo}`;
+        window.setTimeout(() => {
+            toast.className = 'toast';
+        }, 5000);
+    }
+
+    function limpiarFormularioReceta() {
+        const formulario = document.getElementById('formReceta');
+        formulario.reset();
+        document.getElementById('medicamentos').replaceChildren(
+            document.querySelector('.medicamento')
+        );
+        actualizarSelectores();
+    }
+
+    document.getElementById('formReceta').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            paciente: document.getElementById('paciente').value,
+            correo_paciente: document.getElementById('correo_paciente').value,
+            medicamentos: Array.from(document.querySelectorAll('.medicamento')).map((fila) => ({
+                medicamento_id: parseInt(fila.querySelector('.medicamento_id').value),
+                indicaciones: fila.querySelector('.indicaciones').value
+            })),
+            medico: document.getElementById('medico').value
+        };
+
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/recetas`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            document.getElementById('medicamentos').addEventListener('input', (e) => {
+                if (e.target.classList.contains('medicamento-busqueda')) actualizarSelectores();
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudo registrar la receta');
+            mostrarNotificacion(json.mensaje || 'Receta registrada correctamente', 'success');
+            limpiarFormularioReceta();
+            consultarRecetas();
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    });
+
+    async function consultarRecetas() {
+        try {
+            const res = await fetch(`${PORT_3000}/api/medicos/recetas`);
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'No se pudieron consultar las recetas');
+
+            const recetasAgrupadas = new Map();
+            json.recetas.forEach((registro) => {
+                if (!recetasAgrupadas.has(registro.id_receta)) {
+                    recetasAgrupadas.set(registro.id_receta, {
+                        id_receta: registro.id_receta,
+                        paciente: registro.paciente,
+                        correo_paciente: registro.correo_paciente,
+                        medico: registro.medico,
+                        fecha: registro.fecha,
+                        medicamentos: []
+                    });
+                }
+                if (registro.medicamento_id !== null) {
+                    recetasAgrupadas.get(registro.id_receta).medicamentos.push({
+                        medicamento_id: registro.medicamento_id,
+                        indicaciones: registro.medicamento_indicaciones
+                    });
+                }
+            });
+            recetasDisponibles = [...recetasAgrupadas.values()];
+            mostrarRecetasPaciente();
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    }
+
+    function mostrarRecetasPaciente() {
+        const termino = document.getElementById('buscarPaciente').value.trim().toLocaleLowerCase();
+        const recetasFiltradas = recetasDisponibles.filter((receta) =>
+            receta.paciente.toLocaleLowerCase().includes(termino)
+        );
+        const lista = document.getElementById('recetasPaciente');
+        lista.replaceChildren();
+        if (!termino) {
+            lista.innerHTML = '<p>Escribe el nombre de un paciente para consultar sus recetas.</p>';
+        } else if (!recetasFiltradas.length) {
+            lista.innerHTML = '<p>No se encontraron recetas para ese paciente.</p>';
+        } else {
+            recetasFiltradas.forEach((receta) => {
+                const boton = document.createElement('button');
+                boton.type = 'button';
+                boton.className = 'receta-opcion';
+                boton.textContent = `Receta #${receta.id_receta} · ${receta.paciente} · ${receta.fecha}`;
+                boton.addEventListener('click', () => mostrarDetalleReceta(receta.id_receta));
+                lista.appendChild(boton);
+            });
+        }
+        document.getElementById('detalleReceta').classList.remove('visible');
+        document.getElementById('output').textContent = recetasFiltradas.length
+            ? 'Selecciona una receta para ver su información...'
+            : 'No hay recetas seleccionadas.';
+    }
+
+    function mostrarDetalleReceta(idReceta) {
+        const receta = recetasDisponibles.find((item) => item.id_receta === idReceta);
+        const detalle = document.getElementById('detalleReceta');
+        if (!receta) {
+            detalle.classList.remove('visible');
+            document.getElementById('output').textContent = 'Selecciona una receta para ver su información...';
+            return;
+        }
+        detalle.innerHTML = `
+            <h4>Receta #${receta.id_receta} · ${receta.paciente}</h4>
+            <div><strong>Médico:</strong> ${receta.medico}</div>
+            <div><strong>Correo:</strong> ${receta.correo_paciente}</div>
+            <ul>${receta.medicamentos.map((medicamento) =>
+                `<li><strong>Medicamento #${medicamento.medicamento_id}:</strong> ${medicamento.indicaciones}</li>`
+            ).join('')}</ul>
+        `;
+        detalle.classList.add('visible');
+        document.getElementById('output').textContent = JSON.stringify(receta, null, 2);
+    }
+
+    async function probarComunicacionNodos() {
+        const res = await fetch(`${PORT_3000}/api/medicos/consultar-farmacia`);
+        const json = await res.json();
+        document.getElementById('output').textContent = JSON.stringify(json, null, 2);
+    }
+
+    document.getElementById('buscarPaciente').addEventListener('input', mostrarRecetasPaciente);
+
+    cargarMedicamentos();
+    consultarRecetas();
+</script>
+</body>
+</html>
